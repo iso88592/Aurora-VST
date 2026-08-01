@@ -46,7 +46,15 @@ Important paths are independent of the caller's working directory. Override them
 
 ## VST3 status
 
-`Assets/AruraMelody.vst3` is a 64-bit Windows PE DLL. No plugin source, macOS bundle, or Linux shared object is included, so this binary is Windows-only and is not claimed to work on macOS or Linux. On Windows it may be copied to `C:\Program Files\Common Files\VST3\`; validation in individual DAWs is still required. The HTTP API is the supported cross-platform interface.
+No compiled VST is stored in this repository. The clean-room plugin source and
+local build instructions are under [`plugin/`](plugin/). GitHub Actions builds
+the VST3 from that source for each plugin change and exposes the resulting
+bundles as workflow artifacts. Version tags additionally publish the Windows
+x64 bundle as a downloadable GitHub Release asset.
+
+Users should install a CI/release artifact or build from source; do not expect a
+plugin under `Assets/`. The HTTP API remains independently usable on every
+supported backend platform.
 
 ## Troubleshooting
 
