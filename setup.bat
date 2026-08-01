@@ -26,22 +26,27 @@ echo Using Python %PY_VERSION%
 if not exist models mkdir models || exit /b 1
 if not exist logs mkdir logs || exit /b 1
 if not exist temp mkdir temp || exit /b 1
-if not exist .venv py -%PY_VERSION% -m venv .venv || exit /b 1
 set "PYTHON=%CD%\.venv\Scripts\python.exe"
+if not exist "%PYTHON%" (
+  echo [STEP 1/4] Creating virtual environment at .venv
+  py -%PY_VERSION% -m venv .venv || exit /b 1
+) else (
+  echo [STEP 1/4] Reusing virtual environment at .venv
+)
 "%PYTHON%" -c "import sys; assert (3,10) <= sys.version_info < (3,13)" || (
   echo [ERROR] The existing .venv uses an unsupported Python version.
   echo Remove .venv and run setup.bat again to recreate it with Python %PY_VERSION%.
   exit /b 1
 )
-"%PYTHON%" -m pip install --upgrade pip || exit /b 1
-
 if not exist "models\melody_model.safetensors" goto download
 for %%F in ("models\melody_model.safetensors") do if %%~zF LSS 100000000 goto download
 if not exist "models\melody_model_config.json" goto download
 dir /b "models\alv_tokenizer-*.whl" >nul 2>&1 || goto download
+echo [STEP 2/4] Model files already present; skipping download
 goto install
 
 :download
+echo [STEP 2/4] Required model files are missing or incomplete; downloading them
 if exist "temp\hf-download\.git" (
   git -C "temp\hf-download" pull --ff-only || exit /b 1
 ) else (
@@ -56,6 +61,9 @@ move /y "models\melody_model.safetensors.tmp" "models\melody_model.safetensors" 
 move /y "models\melody_model_config.json.tmp" "models\melody_model_config.json" >nul || exit /b 1
 
 :install
+"%PYTHON%" -c "import sys, torch, numpy, safetensors, mido, fastapi, uvicorn, alv_tokenizer; assert (torch.version.cuda is not None) == (sys.argv[1] == 'cuda')" "%DEVICE%" >nul 2>&1 && "%PYTHON%" -m pip check >nul 2>&1 && goto ready
+echo [STEP 3/4] Installing runtime dependencies for %DEVICE%
+"%PYTHON%" -m pip install --upgrade pip || exit /b 1
 if /I "%DEVICE%"=="cuda" (
   "%PYTHON%" -m pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu128 || exit /b 1
 ) else (
@@ -64,5 +72,12 @@ if /I "%DEVICE%"=="cuda" (
 "%PYTHON%" -m pip install -r requirements.txt || exit /b 1
 for %%F in (models\alv_tokenizer-*.whl) do "%PYTHON%" -m pip install --upgrade "%%F" || exit /b 1
 "%PYTHON%" -c "import torch, numpy, safetensors, mido, fastapi, uvicorn, alv_tokenizer; print('Runtime imports: OK')" || exit /b 1
+goto done
+
+:ready
+echo [STEP 3/4] Runtime dependencies already installed; skipping pip
+
+:done
+echo [STEP 4/4] Installation verified
 echo Setup complete. Run: .venv\Scripts\python.exe main.py
 exit /b 0

@@ -25,22 +25,24 @@ private:
     using Attachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     AruraMelodyProcessor& processor;
     AruraLookAndFeel look;
-    juce::Label title, subtitle, status, seedLabel, modelLabel, lengthLabel, tempoLabel;
+    juce::Label title, subtitle, status, seedLabel, modelLabel, lengthLabel, tempoLabel, scaleLabel;
     juce::Label welcome, welcomeDetail;
     juce::TextEditor endpoint;
-    juce::ComboBox models, lengths;
+    juce::ComboBox models, lengths, scales;
     juce::Slider tempo;
     juce::TextButton connectButton { "CONNECT" }, loadButton { "LOAD" };
     juce::TextButton seedButton { "SEED MIDI" }, clearSeedButton { "CLEAR" };
     juce::TextButton generateButton { "G E N" }, playButton { "PLAY" };
     juce::TextButton stopButton { "STOP" }, saveButton { "G R A B" };
     juce::TextButton retryButton { "RETRY NOW" }, logButton { "OPEN LOG" };
+    juce::TextButton settingsButton { "SETTINGS" };
     std::array<juce::Slider, 4> sliders;
     std::array<juce::Label, 4> labels;
     std::array<std::unique_ptr<Attachment>, 4> attachments;
     std::unique_ptr<juce::FileChooser> chooser;
     juce::File seedFile;
     int retryCount = 0;
+    bool settingsVisible = false;
 
     bool isInterestedInFileDrag(const juce::StringArray&) override;
     void filesDropped(const juce::StringArray&, int, int) override;
@@ -53,6 +55,7 @@ private:
     void setBusy(bool, const juce::String&);
     void timerCallback() override;
     void showWelcome(bool, const juce::String& = {});
+    void showSettings(bool);
     void logMessage(const juce::String&) const;
     static juce::File logFile();
     juce::String baseUrl() const;

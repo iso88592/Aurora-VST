@@ -22,9 +22,13 @@ command -v git >/dev/null || { echo "Git is required" >&2; exit 1; }
 python3 -c 'import sys; assert (3,10) <= sys.version_info < (3,13), "Python 3.10-3.12 is required"'
 
 mkdir -p "$ROOT_DIR/models" "$ROOT_DIR/logs" "$ROOT_DIR/temp"
-python3 -m venv "$VENV_DIR"
 PYTHON="$VENV_DIR/bin/python"
-"$PYTHON" -m pip install --upgrade pip
+if [[ ! -x "$PYTHON" ]]; then
+  echo "[STEP 1/4] Creating virtual environment at $VENV_DIR"
+  python3 -m venv "$VENV_DIR"
+else
+  echo "[STEP 1/4] Reusing virtual environment at $VENV_DIR"
+fi
 
 MODEL="$ROOT_DIR/models/melody_model.safetensors"
 CONFIG="$ROOT_DIR/models/melody_model_config.json"
@@ -35,6 +39,7 @@ needs_download=0
 compgen -G "$TOKENIZER_GLOB" >/dev/null || needs_download=1
 
 if [[ "$needs_download" -eq 1 ]]; then
+  echo "[STEP 2/4] Required model files are missing or incomplete; downloading them"
   DOWNLOAD_DIR="$ROOT_DIR/temp/hf-download"
   if [[ -d "$DOWNLOAD_DIR/.git" ]]; then
     git -C "$DOWNLOAD_DIR" pull --ff-only
@@ -49,8 +54,19 @@ if [[ "$needs_download" -eq 1 ]]; then
   [[ $(wc -c < "$CONFIG.tmp") -gt 100 ]] || { echo "Downloaded config is incomplete" >&2; exit 1; }
   mv "$MODEL.tmp" "$MODEL"
   mv "$CONFIG.tmp" "$CONFIG"
+else
+  echo "[STEP 2/4] Model files already present; skipping download"
 fi
 
+if "$PYTHON" -c "import sys, torch, numpy, safetensors, mido, fastapi, uvicorn, alv_tokenizer; assert (torch.version.cuda is not None) == (sys.argv[1] == 'cuda')" "$DEVICE" >/dev/null 2>&1 \
+   && "$PYTHON" -m pip check >/dev/null 2>&1; then
+  echo "[STEP 3/4] Runtime dependencies already installed; skipping pip"
+  echo "[STEP 4/4] Setup already complete"
+  exit 0
+fi
+
+echo "[STEP 3/4] Installing runtime dependencies for $DEVICE"
+"$PYTHON" -m pip install --upgrade pip
 if [[ "$DEVICE" == "cuda" ]]; then
   "$PYTHON" -m pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu128
 else
@@ -60,4 +76,5 @@ fi
 "$PYTHON" -m pip install --upgrade $TOKENIZER_GLOB
 "$PYTHON" -c "import torch, numpy, safetensors, mido, fastapi, uvicorn, alv_tokenizer; print('Runtime imports: OK')"
 
+echo "[STEP 4/4] Installation verified"
 echo "Setup complete. Run: $VENV_DIR/bin/python $ROOT_DIR/main.py"
