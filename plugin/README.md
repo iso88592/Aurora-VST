@@ -63,7 +63,8 @@ in VST3 scanning or processor construction.
 
 `.github/workflows/plugin.yml` builds from source on Windows and Linux for every
 plugin change. The workflow checks the generated VST3 bundle metadata and
-uploads the built bundle. A tag such as `v0.2.0` additionally creates a GitHub
-Release and attaches `AruraMelody-Windows-x64.zip`. CI artifacts and tagged
-release downloads are the only distributed binaries; none are committed to the
-repository.
+uploads the built bundle. A tag such as `v0.2.0` additionally creates or updates
+a GitHub Release and attaches `AruraMelody-Windows-x64.zip` and
+`AruraMelody-Linux-x86_64.tar.gz`. This also works when the release was created
+first in the GitHub UI. CI artifacts and tagged release downloads are the only
+distributed binaries; none are committed to the repository.
