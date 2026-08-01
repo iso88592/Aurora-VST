@@ -41,7 +41,7 @@ target_compile_features(AruraMelody PRIVATE cxx_std_20)
 target_compile_definitions(AruraMelody PUBLIC
   JUCE_DISPLAY_SPLASH_SCREEN=0
   JUCE_REPORT_APP_USAGE=0
-  JUCE_USE_CURL=0
+  JUCE_USE_CURL=1
   JUCE_WEB_BROWSER=0
   JUCE_VST3_CAN_REPLACE_VST2=0
 )
@@ -53,5 +53,10 @@ target_link_libraries(AruraMelody PRIVATE
   juce::juce_recommended_lto_flags
   juce::juce_recommended_warning_flags
 )
+
+if(UNIX AND NOT APPLE)
+  find_package(CURL REQUIRED)
+  target_link_libraries(AruraMelody PRIVATE CURL::libcurl)
+endif()
 
 juce_generate_juce_header(AruraMelody)
