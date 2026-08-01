@@ -4,9 +4,17 @@ Enterprise-grade FastAPI application with YAML configuration support.
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
+
+# Make --config effective before the module-level FastAPI app is created.
+if "--config" in sys.argv:
+    try:
+        os.environ["AURORA_CONFIG"] = str(Path(sys.argv[sys.argv.index("--config") + 1]).resolve())
+    except (IndexError, ValueError):
+        pass
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,16 +25,20 @@ from fastapi.openapi.utils import get_openapi
 # Add app directory to Python path
 sys.path.append(str(Path(__file__).parent))
 
-from app.core.config import get_config_manager, get_config
+from app.core.config import APP_ROOT, get_config_manager, get_config
 from app.api.endpoints import router, create_error_response
 from app.services.model_registry import get_model_registry
 
-# Setup logging
+# Setup logging before constructing FileHandler (also works outside the repo).
+LOG_DIR = Path(os.environ.get("AURORA_LOG_DIR", APP_ROOT / "logs")).expanduser().resolve()
+TEMP_DIR = Path(os.environ.get("AURORA_TEMP_DIR", APP_ROOT / "temp")).expanduser().resolve()
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/api.log'),
+        logging.FileHandler(LOG_DIR / 'api.log'),
         logging.StreamHandler()
     ]
 )
@@ -49,9 +61,18 @@ async def lifespan(app: FastAPI):
         registry = get_model_registry()
         logger.info("✅ Model registry initialized")
 
+        available = registry.get_available_models()
+        usable = {name: info for name, info in available.items()
+                  if info['file_exists'] and info['supported']}
+        if not usable:
+            raise RuntimeError(
+                f"No usable model found in {config.storage.models_root}. "
+                "Run setup again and verify the .safetensors and matching JSON files."
+            )
+
         # Create necessary directories
-        Path("logs").mkdir(exist_ok=True)
-        Path("temp").mkdir(exist_ok=True)
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
         logger.info("🎵 AI Music Generation API is ready!")
 
@@ -226,16 +247,11 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
-    parser.add_argument("--config", default="config/models.yaml", help="Configuration file path")
+    parser.add_argument("--config", help="Configuration file path (or AURORA_CONFIG)")
 
     args = parser.parse_args()
 
     # Override config path if specified
-    if args.config != "config/models.yaml":
-        from app.core.config import ConfigManager
-        global config_manager
-        config_manager = ConfigManager(args.config)
-
     logger.info(f"🌐 Starting server on {args.host}:{args.port}")
     logger.info(f"📚 API docs available at: http://{args.host}:{args.port}/docs")
 

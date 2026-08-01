@@ -7,7 +7,7 @@ import time
 import logging
 from typing import Dict, List, Optional, Any, Type
 from pathlib import Path
-from threading import Lock
+from threading import RLock
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -49,7 +49,7 @@ class ModelRegistry:
 
     def __init__(self):
         self._loaded_models: Dict[str, LoadedModel] = {}
-        self._lock = Lock()
+        self._lock = RLock()
         self.config_manager = get_config_manager()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -225,9 +225,14 @@ class ModelRegistry:
 
             except Exception as e:
                 logger.error(f"Failed to load model {model_name}: {e}")
+                message = str(e)
+                if isinstance(e, ImportError) and "alv_tokenizer" in message:
+                    message = "Tokenizer unavailable: install the downloaded alv_tokenizer wheel"
+                elif isinstance(e, (RuntimeError, ValueError)):
+                    message = f"Incompatible checkpoint or insufficient device memory: {message}"
                 return {
                     'success': False,
-                    'error': f'Failed to load model: {str(e)}'
+                    'error': f'Failed to load model: {message}'
                 }
 
     def unload_model(self, model_name: str) -> Dict[str, Any]:

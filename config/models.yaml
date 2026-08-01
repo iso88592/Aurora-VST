@@ -10,7 +10,7 @@ api:
 
 # Model storage configuration
 storage:
-  models_root: "./model"  # Root directory containing all model folders
+  models_root: "./models"  # Resolved from the repository root
   cache_enabled: true
   max_loaded_models: 3  # Memory management
   auto_unload_after: 3600  # seconds

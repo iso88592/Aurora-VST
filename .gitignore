@@ -1,4 +1,9 @@
 temp
+.venv/
+logs/
+models/*.safetensors
+models/*.json
+models/*.whl
 __pycache__/
 *__pycache__/
 *.pyc

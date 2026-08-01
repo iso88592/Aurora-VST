@@ -3,6 +3,7 @@ Core configuration management for the AI Music API.
 Handles YAML configuration loading and validation.
 """
 
+import os
 import yaml
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -10,6 +11,8 @@ from pydantic import BaseModel, Field, field_validator
 import logging
 
 logger = logging.getLogger(__name__)
+APP_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_CONFIG_PATH = APP_ROOT / "config" / "models.yaml"
 
 
 class APIConfig(BaseModel):
@@ -149,8 +152,9 @@ class AppConfig(BaseModel):
 class ConfigManager:
     """Manages application configuration from YAML files."""
 
-    def __init__(self, config_path: str = "config/models.yaml"):
-        self.config_path = Path(config_path)
+    def __init__(self, config_path: Optional[str] = None):
+        configured_path = config_path or os.environ.get("AURORA_CONFIG") or DEFAULT_CONFIG_PATH
+        self.config_path = Path(configured_path).expanduser().resolve()
         self._config: Optional[AppConfig] = None
         self._discovered_models: Dict[str, ModelConfig] = {}
         self.load_config()
@@ -165,6 +169,11 @@ class ConfigManager:
                 yaml_data = yaml.safe_load(f)
 
             self._config = AppConfig(**yaml_data)
+            models_override = os.environ.get("AURORA_MODELS_DIR")
+            models_root = Path(models_override or self._config.storage.models_root).expanduser()
+            if not models_root.is_absolute():
+                models_root = APP_ROOT / models_root
+            self._config.storage.models_root = str(models_root.resolve())
             
             # Discover actual models from filesystem
             self._discover_models_from_filesystem()
@@ -216,15 +225,22 @@ class ConfigManager:
             return
             
         models_root = Path(self._config.storage.models_root)
+        logger.info("Resolved model directory: %s", models_root)
         if not models_root.exists():
             logger.warning(f"Models root directory not found: {models_root}")
+            logger.info("Discovered safetensors files: []")
+            logger.info("Discovered model config files: []")
+            logger.info("Final API model names: %s", sorted(self.config.models))
             return
             
         # Find all .safetensors files
-        safetensor_files = list(models_root.glob("*.safetensors"))
+        safetensor_files = sorted(models_root.glob("*.safetensors"))
         
         # Find all .json config files
-        json_files = list(models_root.glob("*.json"))
+        json_files = sorted(models_root.glob("*.json"))
+
+        logger.info("Discovered safetensors files: %s", [p.name for p in safetensor_files])
+        logger.info("Discovered model config files: %s", [p.name for p in json_files])
         
         # Group models by their base name and find shared configs
         model_groups = self._group_models_by_base_name(safetensor_files, json_files)
@@ -262,6 +278,8 @@ class ConfigManager:
                     
                 except Exception as e:
                     logger.error(f"Failed to process model {model_name}: {e}")
+
+        logger.info("Final API model names: %s", sorted(self.get_available_models()))
     
     def _group_models_by_base_name(self, safetensor_files: List[Path], json_files: List[Path]) -> Dict[str, Dict]:
         """Group model files by their base name and find corresponding config files."""

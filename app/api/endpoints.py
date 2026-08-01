@@ -5,6 +5,7 @@ Comprehensive endpoints supporting all generation methods and model management.
 
 import json
 import base64
+import os
 import uuid
 import time
 import logging
@@ -27,7 +28,7 @@ from ..schemas.responses import (
     GenerationMetadata, ModelInfo, GenerationStatus, ModelStatus
 )
 from ..services.model_registry import get_model_registry
-from ..core.config import get_config_manager, get_config
+from ..core.config import APP_ROOT, get_config_manager, get_config
 from ..models.base import GenerationParams as BaseGenerationParams
 from ..utils.note_conversion import parse_midi_to_notes
 
@@ -35,6 +36,13 @@ logger = logging.getLogger(__name__)
 
 # Create router
 router = APIRouter()
+
+
+def get_temp_dir() -> Path:
+    """Return the configured, repository-relative generated-file directory."""
+    path = Path(os.environ.get("AURORA_TEMP_DIR", APP_ROOT / "temp")).expanduser().resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def parse_notes_to_tokens(notes: List[Dict], model_name: str) -> List[int]:
@@ -280,7 +288,7 @@ async def generate_music(request: GenerateRequest):
                 midi_url = f"/api/v1/download/midi/{midi_filename}"
                 
                 # Ensure temp directory exists
-                temp_dir = Path("temp")
+                temp_dir = get_temp_dir()
                 temp_dir.mkdir(exist_ok=True)
                 
                 # Save MIDI file
@@ -548,7 +556,7 @@ async def download_midi_file(filename: str):
         raise HTTPException(status_code=400, detail="Invalid filename")
     
     # Check if file exists
-    temp_dir = Path("temp")
+    temp_dir = get_temp_dir()
     file_path = temp_dir / filename
     
     if not file_path.exists():
@@ -574,7 +582,7 @@ async def download_midi_zip(request_id: str):
     if not re.match(r'^[a-zA-Z0-9_-]+$', request_id):
         raise HTTPException(status_code=400, detail="Invalid request ID")
     
-    temp_dir = Path("temp")
+    temp_dir = get_temp_dir()
     midi_files = list(temp_dir.glob(f"{request_id}_melody_*.mid"))
     
     if not midi_files:
@@ -611,7 +619,7 @@ async def cleanup_midi_files(max_age_hours: int = Query(24, description="Max age
     """Clean up old generated MIDI files."""
     import time
     
-    temp_dir = Path("temp")
+    temp_dir = get_temp_dir()
     if not temp_dir.exists():
         return {"message": "No temp directory found", "deleted_files": 0}
     

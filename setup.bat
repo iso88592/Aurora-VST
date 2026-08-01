@@ -1,119 +1,51 @@
 @echo off
-REM Aurora Backend Setup Script for Windows
-
-echo ================================================
-echo Aurora Backend Setup for Windows
-echo ================================================
-echo.
-
-REM Check Python
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Python is not installed
-    echo Install from: https://www.python.org/downloads/
-    pause
-    exit /b 1
-)
-echo [OK] Python found
-python --version
-echo.
-
-REM Check Git
-git --version >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Git is not installed
-    echo Install from: https://git-scm.com/download/win
-    pause
-    exit /b 1
-)
-echo [OK] Git found
-echo.
-
-REM Create directories
-echo [STEP 1/5] Creating directories...
-if not exist "models" mkdir models
-if not exist "logs" mkdir logs
-if not exist "temp" mkdir temp
-echo [OK] Directories created
-echo.
-
-REM Download models from Hugging Face
-echo [STEP 2/5] Downloading models from Hugging Face...
-echo This will download ~2.5 GB (may take several minutes)
-echo.
-
-if exist "temp\hf-download" rmdir /s /q "temp\hf-download"
-
-git clone https://huggingface.co/alvanalrakib/Aurora-Labs temp\hf-download
-if errorlevel 1 (
-    echo [ERROR] Failed to download from Hugging Face
-    pause
-    exit /b 1
+setlocal EnableExtensions
+cd /d "%~dp0"
+set "DEVICE=cpu"
+if /I "%~1"=="--cuda" set "DEVICE=cuda"
+if /I not "%~1"=="" if /I not "%~1"=="--cpu" if /I not "%~1"=="--cuda" if /I not "%~1"=="--non-interactive" (
+  echo Usage: setup.bat [--cpu^|--cuda] [--non-interactive]
+  exit /b 2
 )
 
-REM Copy files to models folder
-echo Copying model files to models folder...
-copy "temp\hf-download\melody_model.safetensors" "models\" >nul
-copy "temp\hf-download\melody_model_config.json" "models\" >nul
-copy "temp\hf-download\alv_tokenizer-2.0.1-py3-none-any.whl" "models\" >nul
+py -3 --version >nul 2>&1 || (echo [ERROR] Python 3.10-3.12 is required & exit /b 1)
+git --version >nul 2>&1 || (echo [ERROR] Git is required & exit /b 1)
+py -3 -c "import sys; assert (3,10) <= sys.version_info < (3,13)" || exit /b 1
+if not exist models mkdir models || exit /b 1
+if not exist logs mkdir logs || exit /b 1
+if not exist temp mkdir temp || exit /b 1
+if not exist .venv py -3 -m venv .venv || exit /b 1
+set "PYTHON=%CD%\.venv\Scripts\python.exe"
+"%PYTHON%" -m pip install --upgrade pip || exit /b 1
 
-if not exist "models\melody_model.safetensors" (
-    echo [ERROR] Model files not found in download
-    pause
-    exit /b 1
-)
+if not exist "models\melody_model.safetensors" goto download
+for %%F in ("models\melody_model.safetensors") do if %%~zF LSS 100000000 goto download
+if not exist "models\melody_model_config.json" goto download
+dir /b "models\alv_tokenizer-*.whl" >nul 2>&1 || goto download
+goto install
 
-echo [OK] Model files downloaded
-echo.
-
-REM Install tokenizer first
-echo [STEP 3/5] Installing Aurora tokenizer...
-python -m pip install --upgrade "models\alv_tokenizer-2.0.1-py3-none-any.whl"
-echo [OK] Tokenizer installed
-echo.
-
-REM Install other dependencies
-echo [STEP 4/5] Installing dependencies...
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-echo [OK] Dependencies installed
-echo.
-
-REM PyTorch installation
-echo [STEP 5/5] PyTorch Installation
-echo.
-python -c "import torch" >nul 2>&1
-if errorlevel 1 (
-    echo PyTorch is not installed. Please install it manually:
-    echo.
-    echo For NVIDIA GPU with CUDA support:
-    echo   python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-    echo.
-    echo For CPU only (slower but works without GPU):
-    echo   python -m pip install torch torchvision torchaudio
-    echo.
-    echo After installing PyTorch, run the server with: python main.py
+:download
+if exist "temp\hf-download\.git" (
+  git -C "temp\hf-download" pull --ff-only || exit /b 1
 ) else (
-    echo [OK] PyTorch already installed
-    python -c "import torch; print('  Version:', torch.__version__); print('  CUDA:', 'Available' if torch.cuda.is_available() else 'Not available')"
+  if exist "temp\hf-download" rmdir /s /q "temp\hf-download"
+  git clone --depth 1 https://huggingface.co/alvanalrakib/Aurora-Labs "temp\hf-download" || exit /b 1
 )
-echo.
+copy /y "temp\hf-download\melody_model.safetensors" "models\melody_model.safetensors.tmp" >nul || exit /b 1
+copy /y "temp\hf-download\melody_model_config.json" "models\melody_model_config.json.tmp" >nul || exit /b 1
+copy /y "temp\hf-download\alv_tokenizer-*.whl" "models\" >nul || exit /b 1
+for %%F in ("models\melody_model.safetensors.tmp") do if %%~zF LSS 100000000 (echo [ERROR] Incomplete model; install Git LFS & exit /b 1)
+move /y "models\melody_model.safetensors.tmp" "models\melody_model.safetensors" >nul || exit /b 1
+move /y "models\melody_model_config.json.tmp" "models\melody_model_config.json" >nul || exit /b 1
 
-REM Cleanup
-rmdir /s /q "temp\hf-download"
-
-echo.
-echo ================================================
-echo Setup Complete!
-echo ================================================
-echo.
-echo Next steps:
-echo 1. If PyTorch not installed, install it using commands above
-echo 2. Start server: python main.py
-echo 3. Open API docs: http://localhost:8000/docs
-echo.
-echo Optional - Install VST Plugin:
-echo   Copy Assets\AruraMelody.vst3 to:
-echo   C:\Program Files\Common Files\VST3\
-echo.
-pause
+:install
+if /I "%DEVICE%"=="cuda" (
+  "%PYTHON%" -m pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu128 || exit /b 1
+) else (
+  "%PYTHON%" -m pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cpu || exit /b 1
+)
+"%PYTHON%" -m pip install -r requirements.txt || exit /b 1
+for %%F in (models\alv_tokenizer-*.whl) do "%PYTHON%" -m pip install --upgrade "%%F" || exit /b 1
+"%PYTHON%" -c "import torch, numpy, safetensors, mido, fastapi, uvicorn, alv_tokenizer; print('Runtime imports: OK')" || exit /b 1
+echo Setup complete. Run: .venv\Scripts\python.exe main.py
+exit /b 0
