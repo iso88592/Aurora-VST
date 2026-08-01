@@ -34,6 +34,25 @@ full rescan. Do not copy only the DLL from inside the bundle.
 The Release build statically links the MSVC runtime. The editor is native and
 does not require Microsoft Edge WebView2.
 
+## Build on Ubuntu
+
+Install the JUCE development dependencies before configuring:
+
+```bash
+sudo apt-get update
+sudo apt-get install --yes --no-install-recommends \
+  libasound2-dev libcurl4-openssl-dev \
+  libfontconfig1-dev libfreetype-dev \
+  libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+  libxinerama-dev libxrandr-dev libxrender-dev
+cmake -S plugin -B build/plugin -DCMAKE_BUILD_TYPE=Release
+cmake --build build/plugin --config Release --parallel 2
+```
+
+WebKitGTK and OpenGL development packages are intentionally unnecessary: the
+plugin uses a native JUCE editor, disables `JUCE_WEB_BROWSER`, and does not link
+the JUCE OpenGL module.
+
 The editor always opens before attempting network access. Its welcome screen
 tries the configured backend three times, reports API errors, and provides
 **Retry Now** and **Open Log** controls. On Windows the diagnostic log is stored
