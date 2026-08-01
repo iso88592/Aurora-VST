@@ -59,12 +59,19 @@ tries the configured backend three times, reports API errors, and provides
 at `%APPDATA%\AruraMelody\plugin.log`. Backend connectivity never participates
 in VST3 scanning or processor construction.
 
+The VST3 release is only the native plugin client. It does not bundle or launch
+Python or the model server. On Windows, run `setup.bat --cpu` from the repository
+and start `.venv\Scripts\python.exe main.py` before connecting the plugin.
+Python 3.10, 3.11, and 3.12 are supported.
+
 ## CI and releases
 
-`.github/workflows/plugin.yml` builds from source on Windows and Linux for every
-plugin change. The workflow checks the generated VST3 bundle metadata and
-uploads the built bundle. A tag such as `v0.2.0` additionally creates or updates
-a GitHub Release and attaches `AruraMelody-Windows-x64.zip` and
+`.github/workflows/plugin.yml` builds from source on Windows and Linux for pull
+requests, manual runs, and version tags. Ordinary pushes to `main` do not build,
+avoiding a duplicate matrix run immediately before tagging. The workflow checks
+the generated VST3 bundle metadata and uploads the built bundle. A tag such as
+`v0.2.0` additionally creates or updates a GitHub Release and attaches
+`AruraMelody-Windows-x64.zip` and
 `AruraMelody-Linux-x86_64.tar.gz`. This also works when the release was created
 first in the GitHub UI. CI artifacts and tagged release downloads are the only
 distributed binaries; none are committed to the repository.

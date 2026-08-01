@@ -35,6 +35,12 @@ Development tools are separate:
 
 On Windows, run `.venv\Scripts\python.exe main.py`, then `powershell -ExecutionPolicy Bypass -File scripts\smoke-test.ps1` in another terminal.
 
+The downloadable VST3 does not embed Python, the model, or the API server. Run
+`setup.bat --cpu` once, then start `.venv\Scripts\python.exe main.py` before
+opening or reconnecting the plugin. Python 3.10 is supported; `setup.bat`
+deliberately selects the newest installed compatible interpreter from
+3.12, 3.11, and 3.10 instead of accepting Python 3.13+.
+
 The API is at <http://localhost:8000>, with interactive documentation at `/docs`. Clients must discover the canonical model identifier instead of guessing it:
 
 ```bash

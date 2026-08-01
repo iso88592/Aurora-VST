@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 set "DEVICE=cpu"
 if /I "%~1"=="--cuda" set "DEVICE=cuda"
@@ -8,14 +8,31 @@ if /I not "%~1"=="" if /I not "%~1"=="--cpu" if /I not "%~1"=="--cuda" if /I not
   exit /b 2
 )
 
-py -3 --version >nul 2>&1 || (echo [ERROR] Python 3.10-3.12 is required & exit /b 1)
+py --version >nul 2>&1 || (echo [ERROR] The Python launcher is required. Install Python 3.10, 3.11, or 3.12 from python.org. & exit /b 1)
 git --version >nul 2>&1 || (echo [ERROR] Git is required & exit /b 1)
-py -3 -c "import sys; assert (3,10) <= sys.version_info < (3,13)" || exit /b 1
+set "PY_VERSION="
+for %%V in (3.12 3.11 3.10) do (
+  if not defined PY_VERSION (
+    py -%%V -c "import sys; assert (3,10) <= sys.version_info < (3,13)" >nul 2>&1
+    if !errorlevel! equ 0 set "PY_VERSION=%%V"
+  )
+)
+if not defined PY_VERSION (
+  echo [ERROR] Python 3.10, 3.11, or 3.12 is required. Python 3.13+ is not supported.
+  py -0p
+  exit /b 1
+)
+echo Using Python %PY_VERSION%
 if not exist models mkdir models || exit /b 1
 if not exist logs mkdir logs || exit /b 1
 if not exist temp mkdir temp || exit /b 1
-if not exist .venv py -3 -m venv .venv || exit /b 1
+if not exist .venv py -%PY_VERSION% -m venv .venv || exit /b 1
 set "PYTHON=%CD%\.venv\Scripts\python.exe"
+"%PYTHON%" -c "import sys; assert (3,10) <= sys.version_info < (3,13)" || (
+  echo [ERROR] The existing .venv uses an unsupported Python version.
+  echo Remove .venv and run setup.bat again to recreate it with Python %PY_VERSION%.
+  exit /b 1
+)
 "%PYTHON%" -m pip install --upgrade pip || exit /b 1
 
 if not exist "models\melody_model.safetensors" goto download

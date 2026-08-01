@@ -2,9 +2,7 @@ name: VST3
 
 on:
   push:
-    branches: ["**"]
     tags: ["v*"]
-    paths: ["plugin/**", ".github/workflows/plugin.yml"]
   pull_request:
     paths: ["plugin/**", ".github/workflows/plugin.yml"]
   workflow_dispatch:
